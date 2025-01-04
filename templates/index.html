@@ -27,68 +27,261 @@
             margin: 5px;
             min-width: 100px;
         }
+        .leaderboard {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .leaderboard-item.current-user {
+            background-color: #e3f2fd;
+        }
+        .rank {
+            font-weight: bold;
+            margin-right: 15px;
+            min-width: 30px;
+        }
+        .user-progress {
+            flex-grow: 1;
+            margin: 0 15px;
+        }
+        .user-intake {
+            min-width: 100px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
     <div class="container water-container">
         <h1 class="text-center mb-4">💧 Water Reminder</h1>
         
-        <div class="progress">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
-                 role="progressbar" 
-                 style="width: {{ stats.percentage }}%"
-                 aria-valuenow="{{ stats.daily_intake }}" 
-                 aria-valuemin="0" 
-                 aria-valuemax="{{ stats.target }}">
-                {{ "%.1f"|format(stats.percentage) }}%
+        <div id="name-input-section" class="mb-4">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="text" id="username" class="form-control" placeholder="Enter your name">
+                        <button class="btn btn-primary" onclick="setUsername()">Start Tracking</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="text-center mb-4">
-            <p class="h5">Daily Intake: <span id="daily-intake">{{ stats.daily_intake }}</span>ml</p>
-            <p class="text-muted">Target: {{ stats.target }}ml | Remaining: <span id="remaining">{{ stats.remaining }}</span>ml</p>
-        </div>
-
-        <div class="row justify-content-center mb-4">
-            <div class="col-12 text-center">
-                <h5>Quick Add:</h5>
-                <button class="btn btn-outline-primary quick-add" onclick="addWater(100)">100ml</button>
-                <button class="btn btn-outline-primary quick-add" onclick="addWater(200)">200ml</button>
-                <button class="btn btn-outline-primary quick-add" onclick="addWater(300)">300ml</button>
-                <button class="btn btn-outline-primary quick-add" onclick="addWater(500)">500ml</button>
+        <div id="water-tracking-section" style="display: none;">
+            <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                     role="progressbar" 
+                     style="width: 0%"
+                     aria-valuenow="0" 
+                     aria-valuemin="0" 
+                     aria-valuemax="3000">
+                    0%
+                </div>
             </div>
-        </div>
 
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="input-group">
-                    <input type="number" id="custom-amount" class="form-control" placeholder="Enter amount in ml">
-                    <button class="btn btn-primary" onclick="addCustomAmount()">Add Custom Amount</button>
+            <div class="text-center mb-4">
+                <p class="h5">Daily Intake: <span id="daily-intake">0</span>ml</p>
+                <p class="text-muted">Target: <span id="target">3000</span>ml | Remaining: <span id="remaining">3000</span>ml</p>
+            </div>
+
+            <div class="row justify-content-center mb-4">
+                <div class="col-12 text-center">
+                    <h5>Quick Add:</h5>
+                    <button class="btn btn-outline-primary quick-add" onclick="addWater(100)">100ml</button>
+                    <button class="btn btn-outline-primary quick-add" onclick="addWater(200)">200ml</button>
+                    <button class="btn btn-outline-primary quick-add" onclick="addWater(300)">300ml</button>
+                    <button class="btn btn-outline-primary quick-add" onclick="addWater(500)">500ml</button>
+                </div>
+            </div>
+
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="input-group">
+                        <input type="number" id="custom-amount" class="form-control" placeholder="Enter amount in ml">
+                        <button class="btn btn-primary" onclick="addCustomAmount()">Add Custom Amount</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="leaderboard">
+                <h4 class="text-center mb-4">Today's Water Champions 🏆</h4>
+                <div id="leaderboard-list">
+                    <!-- Leaderboard items will be added here -->
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function updateUI(data) {
-            document.querySelector('.progress-bar').style.width = data.percentage + '%';
-            document.querySelector('.progress-bar').textContent = data.percentage.toFixed(1) + '%';
-            document.getElementById('daily-intake').textContent = data.daily_intake;
-            document.getElementById('remaining').textContent = data.remaining;
+        let currentUsername = '';
+        let lastNotificationTime = 0;
+        const NOTIFICATION_INTERVAL = 360000; // 1 hour in milliseconds
+
+        // Register service worker for notifications
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(function(registration) {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                    // Request notification permission after SW registration
+                    if ("Notification" in window) {
+                        Notification.requestPermission();
+                    }
+                })
+                .catch(function(error) {
+                    console.log('Service Worker registration failed:', error);
+                });
         }
 
-        function addWater(amount) {
-            fetch('/add_water', {
+        function updateUI(data) {
+            const stats = data.stats;
+            document.querySelector('.progress-bar').style.width = stats.percentage + '%';
+            document.querySelector('.progress-bar').textContent = stats.percentage.toFixed(1) + '%';
+            document.getElementById('daily-intake').textContent = stats.daily_intake;
+            document.getElementById('remaining').textContent = stats.remaining;
+            document.getElementById('target').textContent = stats.target;
+            updateLeaderboard(data.all_users_stats);
+        }
+
+        function updateLeaderboard(allStats) {
+            const leaderboardList = document.getElementById('leaderboard-list');
+            leaderboardList.innerHTML = '';
+            
+            allStats.forEach((user, index) => {
+                const isCurrentUser = user.username === currentUsername;
+                const div = document.createElement('div');
+                div.className = `leaderboard-item${isCurrentUser ? ' current-user' : ''}`;
+                div.innerHTML = `
+                    <div class="rank">#${index + 1}</div>
+                    <div class="username">${user.username}</div>
+                    <div class="user-progress">
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar bg-info" style="width: ${user.percentage}%"></div>
+                        </div>
+                    </div>
+                    <div class="user-intake">${user.daily_intake}ml</div>
+                `;
+                leaderboardList.appendChild(div);
+            });
+        }
+
+        function refreshStats() {
+            if (!currentUsername) return;
+            
+            fetch('/get_stats', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: 'amount=' + amount
+                body: 'username=' + encodeURIComponent(currentUsername)
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
                     updateUI(data);
+                }
+            });
+        }
+
+        function checkAndNotify() {
+            if (!currentUsername) return;
+            
+            const now = Date.now();
+            if (now - lastNotificationTime >= NOTIFICATION_INTERVAL) {
+                fetch('/get_stats', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'username=' + encodeURIComponent(currentUsername)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.stats.remaining > 0) {
+                        showNotification(
+                            'Hourly Water Reminder',
+                            `Hey ${currentUsername}! You still need ${data.stats.remaining}ml to reach your daily goal.`
+                        );
+                    }
+                });
+            }
+        }
+
+        function showNotification(title, message) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, {
+                    body: message,
+                    icon: '/static/230x0w.png'
+                });
+                lastNotificationTime = Date.now();
+                localStorage.setItem('waterReminderLastNotification', lastNotificationTime.toString());
+            }
+        }
+
+        // Check for saved username and last notification time on page load
+        window.addEventListener('load', () => {
+            const savedUsername = localStorage.getItem('waterReminderUsername');
+            const savedLastNotification = localStorage.getItem('waterReminderLastNotification');
+            
+            if (savedLastNotification) {
+                lastNotificationTime = parseInt(savedLastNotification);
+            }
+            
+            if (savedUsername) {
+                document.getElementById('username').value = savedUsername;
+                currentUsername = savedUsername;
+                document.getElementById('name-input-section').style.display = 'none';
+                document.getElementById('water-tracking-section').style.display = 'block';
+                refreshStats();
+                // Set up periodic updates
+                setInterval(refreshStats, 30000); // Refresh stats every 30 seconds
+                setInterval(checkAndNotify, 60000); // Check for notifications every minute
+                // Initial notification check
+                checkAndNotify();
+            }
+        });
+
+        function setUsername() {
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                alert('Please enter your name');
+                return;
+            }
+            currentUsername = username;
+            localStorage.setItem('waterReminderUsername', username);
+            
+            document.getElementById('name-input-section').style.display = 'none';
+            document.getElementById('water-tracking-section').style.display = 'block';
+            
+            refreshStats();
+            // Set up periodic updates
+            setInterval(refreshStats, 30000); // Refresh stats every 30 seconds
+            setInterval(checkAndNotify, 60000); // Check for notifications every minute
+            // Initial notification check
+            checkAndNotify();
+        }
+
+        function addWater(amount) {
+            if (!currentUsername) {
+                alert('Please enter your name first');
+                return;
+            }
+            fetch('/add_water', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'username=' + encodeURIComponent(currentUsername) + '&amount=' + amount
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    refreshStats();
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -100,8 +293,6 @@
             if (amount > 0) {
                 addWater(amount);
                 document.getElementById('custom-amount').value = '';
-            } else {
-                alert('Please enter a valid amount');
             }
         }
     </script>
