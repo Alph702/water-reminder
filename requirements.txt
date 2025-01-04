@@ -1,0 +1,4 @@
+plyer==2.1.0
+datetime
+tqdm==4.66.1
+flask==3.0.0

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/230x0w.png">
+    <title>Water Reminder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+            padding: 20px;
+        }
+        .water-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .progress {
+            height: 25px;
+            margin: 20px 0;
+        }
+        .quick-add {
+            margin: 5px;
+            min-width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container water-container">
+        <h1 class="text-center mb-4">💧 Water Reminder</h1>
+        
+        <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                 role="progressbar" 
+                 style="width: {{ stats.percentage }}%"
+                 aria-valuenow="{{ stats.daily_intake }}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="{{ stats.target }}">
+                {{ "%.1f"|format(stats.percentage) }}%
+            </div>
+        </div>
+
+        <div class="text-center mb-4">
+            <p class="h5">Daily Intake: <span id="daily-intake">{{ stats.daily_intake }}</span>ml</p>
+            <p class="text-muted">Target: {{ stats.target }}ml | Remaining: <span id="remaining">{{ stats.remaining }}</span>ml</p>
+        </div>
+
+        <div class="row justify-content-center mb-4">
+            <div class="col-12 text-center">
+                <h5>Quick Add:</h5>
+                <button class="btn btn-outline-primary quick-add" onclick="addWater(100)">100ml</button>
+                <button class="btn btn-outline-primary quick-add" onclick="addWater(200)">200ml</button>
+                <button class="btn btn-outline-primary quick-add" onclick="addWater(300)">300ml</button>
+                <button class="btn btn-outline-primary quick-add" onclick="addWater(500)">500ml</button>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <input type="number" id="custom-amount" class="form-control" placeholder="Enter amount in ml">
+                    <button class="btn btn-primary" onclick="addCustomAmount()">Add Custom Amount</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateUI(data) {
+            document.querySelector('.progress-bar').style.width = data.percentage + '%';
+            document.querySelector('.progress-bar').textContent = data.percentage.toFixed(1) + '%';
+            document.getElementById('daily-intake').textContent = data.daily_intake;
+            document.getElementById('remaining').textContent = data.remaining;
+        }
+
+        function addWater(amount) {
+            fetch('/add_water', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'amount=' + amount
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateUI(data);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        }
+
+        function addCustomAmount() {
+            const amount = document.getElementById('custom-amount').value;
+            if (amount > 0) {
+                addWater(amount);
+                document.getElementById('custom-amount').value = '';
+            } else {
+                alert('Please enter a valid amount');
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
