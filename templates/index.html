@@ -88,6 +88,9 @@
             <div class="text-center mb-4">
                 <p class="h5">Daily Intake: <span id="daily-intake">0</span>ml</p>
                 <p class="text-muted">Target: <span id="target">3000</span>ml | Remaining: <span id="remaining">3000</span>ml</p>
+                <p class="text-muted" id="last-drink-info" style="display: none;">
+                    Last drink: <span id="time-since-last-drink">0</span> minutes ago
+                </p>
             </div>
 
             <div class="row justify-content-center mb-4">
@@ -109,11 +112,9 @@
                 </div>
             </div>
 
-            <div class="leaderboard">
-                <h4 class="text-center mb-4">Today's Water Champions 🏆</h4>
-                <div id="leaderboard-list">
-                    <!-- Leaderboard items will be added here -->
-                </div>
+            <div class="leaderboard mt-4">
+                <h4 class="text-center mb-3">💧 Water Champions 🏆</h4>
+                <div id="leaderboard-list"></div>
             </div>
         </div>
     </div>
@@ -141,10 +142,26 @@
         function updateUI(data) {
             const stats = data.stats;
             document.querySelector('.progress-bar').style.width = stats.percentage + '%';
-            document.querySelector('.progress-bar').textContent = stats.percentage.toFixed(1) + '%';
+            document.querySelector('.progress-bar').textContent = Math.round(stats.percentage) + '%';
             document.getElementById('daily-intake').textContent = stats.daily_intake;
-            document.getElementById('remaining').textContent = stats.remaining;
             document.getElementById('target').textContent = stats.target;
+            document.getElementById('remaining').textContent = stats.remaining;
+            
+            const lastDrinkInfo = document.getElementById('last-drink-info');
+            const timeSinceLastDrink = document.getElementById('time-since-last-drink');
+            
+            if (data.minutes_since_last_drink !== null) {
+                lastDrinkInfo.style.display = 'block';
+                timeSinceLastDrink.textContent = data.minutes_since_last_drink;
+            } else {
+                lastDrinkInfo.style.display = 'none';
+            }
+            
+            // Keep progress bar always blue
+            const progressBar = document.querySelector('.progress-bar');
+            progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+
+            // Update the leaderboard
             updateLeaderboard(data.all_users_stats);
         }
 
@@ -160,8 +177,11 @@
                     <div class="rank">#${index + 1}</div>
                     <div class="username">${user.username}</div>
                     <div class="user-progress">
-                        <div class="progress" style="height: 10px;">
-                            <div class="progress-bar bg-info" style="width: ${user.percentage}%"></div>
+                        <div class="progress" style="height: 15px;">
+                            <div class="progress-bar bg-info" style="width: ${user.percentage}%" 
+                                 role="progressbar" aria-valuenow="${user.percentage}" 
+                                 aria-valuemin="0" aria-valuemax="100">
+                            </div>
                         </div>
                     </div>
                     <div class="user-intake">${user.daily_intake}ml</div>

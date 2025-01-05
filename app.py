@@ -12,6 +12,7 @@ class WaterReminder:
         self.target_ml = 3000
         self.users_data = {}
         self.data_file = 'water_data.json'
+        self.last_reminder_time = datetime.now()
         self.load_data()
 
     def load_data(self):
@@ -19,7 +20,7 @@ class WaterReminder:
             try:
                 with open(self.data_file, 'r') as f:
                     data = json.load(f)
-                    current_date = datetime.now().date().isoformat()
+                    current_date = datetime.now().strftime('%Y-%m-%d')
                     if isinstance(data, dict):
                         self.users_data = data
                     else:
@@ -29,7 +30,8 @@ class WaterReminder:
                         if self.users_data[username].get('date') != current_date:
                             self.users_data[username]['intake'] = 0
                             self.users_data[username]['date'] = current_date
-            except:
+                            self.users_data[username]['last_drink_time'] = None
+            except json.JSONDecodeError:
                 self.users_data = {}
         
     def save_data(self):
@@ -38,26 +40,35 @@ class WaterReminder:
 
     def get_user_stats(self, username):
         if username not in self.users_data:
-            current_date = datetime.now().date().isoformat()
+            current_date = datetime.now().strftime('%Y-%m-%d')
             self.users_data[username] = {
                 'date': current_date,
-                'intake': 0
+                'intake': 0,
+                'last_drink_time': None
             }
             self.save_data()
         
         user_data = self.users_data[username]
         daily_intake = user_data.get('intake', 0)
         remaining = max(0, self.target_ml - daily_intake)
+        last_drink = user_data.get('last_drink_time')
+        
+        time_since_last_drink = None
+        if last_drink:
+            last_drink_dt = datetime.fromisoformat(last_drink)
+            time_since_last_drink = int((datetime.now() - last_drink_dt).total_seconds() / 60)
+
         return {
             'username': username,
             'daily_intake': daily_intake,
             'remaining': remaining,
             'target': self.target_ml,
-            'percentage': min(100, (daily_intake / self.target_ml) * 100)
+            'percentage': min(100, (daily_intake / self.target_ml) * 100),
+            'minutes_since_last_drink': time_since_last_drink
         }
 
     def get_all_users_stats(self):
-        current_date = datetime.now().date().isoformat()
+        current_date = datetime.now().strftime('%Y-%m-%d')
         all_stats = []
         for username, data in self.users_data.items():
             if data.get('date') == current_date:
@@ -75,7 +86,9 @@ class WaterReminder:
         if username not in self.users_data:
             self.get_user_stats(username)
         
+        current_time = datetime.now().isoformat()
         self.users_data[username]['intake'] += ml
+        self.users_data[username]['last_drink_time'] = current_time
         self.save_data()
         return self.get_user_stats(username)
 
