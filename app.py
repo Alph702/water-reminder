@@ -2,8 +2,6 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from datetime import datetime, timedelta
 import json
 import os
-import threading
-import time
 
 app = Flask(__name__)
 
